@@ -32,6 +32,7 @@ input[type=number]{-moz-appearance:textfield}
 .auth-err{color:var(--red);font-size:12px;line-height:1.5;margin-top:14px;text-align:left}
 .auth-alt{margin-top:12px;width:100%;padding:12px;background:transparent;color:var(--fg3);border:1px solid var(--fg4);border-radius:12px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;transition:border .2s,color .2s}
 .auth-alt:hover{color:var(--fg2);border-color:rgba(255,255,255,.12)}
+.auth-hint{color:var(--fg4);font-size:11px;line-height:1.45;margin-top:14px;text-align:left}
 .login-loading{display:flex;flex-direction:column;align-items:center;gap:16px;padding:20px}
 .spinner{width:32px;height:32px;border:3px solid var(--fg4);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 
@@ -198,9 +199,25 @@ const R1={f:[[1,0],[3,2],[2,1],null,[2,1]],u:[[2,1],[2,1],[1,null],[2,1],[1,0],n
 const T2={f:["Lengthened Partials",null,null,null,"Lengthened Partials","Lengthened Partials"],u:["Lengthened Partials","Two Drop Sets (~25%)",null,"Static Hold (30s)"],l:["Lengthened Partials",null,null,null,"Lengthened Partials"],a:[null,null,null,"Two Drop Sets (~25%)",null,null,"Two Drop Sets (~25%)","Myo-reps"]};
 const DATA=[gW(1,1,R1.f,R1.u,R1.l,R1.a),gW(2,1),gW(3,1),gW(4,1),gW(5,1),gW(6,1),gW(7,2,R1.f,R1.u,R1.l,R1.a),gW(8,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a),gW(9,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a),gW(10,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a),gW(11,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a),gW(12,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a)];
 
-// Firestore helpers
+const LOCAL_UID='local';
+const LOCAL_KEY='hitfit-minmax-local-v1';
+const LOCAL_PROFILE={uid:LOCAL_UID,displayName:'Guest',photoURL:null};
+function readLocal(){
+  try{const s=localStorage.getItem(LOCAL_KEY);return s?JSON.parse(s):null}catch(e){return null}
+}
+function writeLocalField(field,data){
+  const cur=readLocal()||{};
+  cur[field]=data;
+  try{localStorage.setItem(LOCAL_KEY,JSON.stringify(cur))}catch(e){console.error(e)}
+}
+
+// Firestore + local device storage
 let saveTimer=null;
-const cloudSave=(uid,field,data)=>{clearTimeout(saveTimer);saveTimer=setTimeout(()=>{db.collection('users').doc(uid).set({[field]:data},{merge:true}).catch(console.error)},800)};
+const cloudSave=(uid,field,data)=>{
+  clearTimeout(saveTimer);
+  if(uid===LOCAL_UID){saveTimer=setTimeout(()=>writeLocalField(field,data),800);return}
+  saveTimer=setTimeout(()=>{db.collection('users').doc(uid).set({[field]:data},{merge:true}).catch(console.error)},800)
+};
 
 // SVGs
 const Chk=h('svg',{width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"#000",strokeWidth:3.5},h('polyline',{points:"20 6 9 17 4 12"}));
@@ -242,11 +259,11 @@ function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid}){
 }
 
 // Progress
-function Prog({logs}){
+function Prog({logs,localOnly}){
   const exN=Object.keys(YT).filter(n=>n!=="Dead Hang (optional)");
   const gH=name=>{const r=[];DATA.forEach((w,wi)=>w.d.forEach((d,di)=>d.e.forEach((x,ei)=>{if(x.n===name){const l=logs[wi+'-'+di+'-'+ei+'-0'];if(l&&l.w)r.push({wk:+w.w,wt:+l.w,rp:+(l.rp||0)})}})));return r};
   const tr=exN.filter(n=>gH(n).length>0);
-  return h('div',{className:"pp"},h('h2',{style:{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:2,marginBottom:3}},'Progress'),h('p',{style:{color:'var(--fg3)',fontSize:12,marginBottom:16}},'Strength gains synced to your account'),
+  return h('div',{className:"pp"},h('h2',{style:{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:2,marginBottom:3}},'Progress'),h('p',{style:{color:'var(--fg3)',fontSize:12,marginBottom:16}},localOnly?'Logged on this device only (works where Google is blocked).':'Strength gains synced to your account'),
     tr.length===0?h('div',{className:"pe"},h('p',null,'No data logged yet.',h('br'),'Log your sets to track progress.')):
     tr.map(n=>{const hs=gH(n);const mx=Math.max(...hs.map(x=>x.wt));const mn=Math.min(...hs.map(x=>x.wt));const rg=mx-mn||1;
       return h('div',{className:"pc",key:n},h('div',{className:"pch"},h('span',{className:"pcn"},n),h('span',{className:"pcpr"},'PR: '+mx+'lbs')),h('div',{className:"pbs"},...hs.map((x,i)=>h('div',{className:"pb",key:i,style:{background:'linear-gradient(180deg,var(--teal),rgba(45,212,168,.3))',height:Math.max(((x.wt-mn)/rg)*100,8)+'%'},title:'W'+x.wk+': '+x.wt+'lbs'}))),h('div',{style:{display:'flex',justifyContent:'space-between',marginTop:2}},h('span',{style:{color:'var(--fg4)',fontSize:8,fontFamily:"'JetBrains Mono',monospace"}},'W'+hs[0].wk),h('span',{style:{color:'var(--fg4)',fontSize:8,fontFamily:"'JetBrains Mono',monospace"}},'W'+hs[hs.length-1].wk)))}));
@@ -273,7 +290,10 @@ function Ov({wi,setDi,setView}){
 
 // Main App
 function App(){
-  const[user,setUser]=useState(null);
+  const[firebaseUser,setFirebaseUser]=useState(null);
+  const[guestUser,setGuestUser]=useState(null);
+  const guestRef=useRef(false);
+  const user=firebaseUser||guestUser;
   const[loading,setLoading]=useState(true);
   const[wi,setWi]=useState(0);
   const[di,setDi]=useState(0);
@@ -288,16 +308,22 @@ function App(){
     auth.getRedirectResult().catch(e=>{console.error(e);setAuthError(authErrMsg(e))});
   },[]);
 
-  // Auth listener
+  // Auth listener (guest session is separate so Firebase null does not sign you out)
   useEffect(()=>{
     return auth.onAuthStateChanged(u=>{
-      setUser(u);
       if(u){
+        guestRef.current=false;
+        setGuestUser(null);
+        setFirebaseUser(u);
         db.collection('users').doc(u.uid).get().then(doc=>{
           if(doc.exists){const d=doc.data();setDone(d.done||{});setLogs(d.logs||{});setWi(d.wi||0)}
           setSynced(true);setLoading(false);
         }).catch(()=>{setSynced(true);setLoading(false)});
-      } else {setLoading(false);setSynced(false)}
+      } else {
+        setFirebaseUser(null);
+        setLoading(false);
+        if(!guestRef.current)setSynced(false);
+      }
     });
   },[]);
 
@@ -313,7 +339,19 @@ function App(){
     setAuthError('');
     auth.signInWithRedirect(provider).catch(e=>{console.error(e);setAuthError(authErrMsg(e))});
   };
-  const signOut=()=>auth.signOut();
+  const continueOnDevice=()=>{
+    setAuthError('');
+    guestRef.current=true;
+    const d=readLocal();
+    if(d){setDone(d.done||{});setLogs(d.logs||{});setWi(typeof d.wi==='number'?d.wi:0)}
+    setGuestUser(LOCAL_PROFILE);
+    setSynced(true);
+    setLoading(false);
+  };
+  const signOut=()=>{
+    if(guestRef.current){guestRef.current=false;setGuestUser(null);return}
+    auth.signOut();
+  };
 
   const toggleDone=useCallback(k=>{
     setDone(p=>{const n={...p,[k]:!p[k]};if(user)cloudSave(user.uid,'done',n);return n});
@@ -330,9 +368,11 @@ function App(){
       h('div',{className:"login-title"},'MIN-MAX'),
       h('div',{className:"login-sub"},'12-Week Training Program \u2022 4\u00d7 Per Week'),
       h('div',{className:"login-card"},
-        h('p',{style:{color:'var(--fg3)',fontSize:13,marginBottom:20}},'Sign in to sync your training data across all devices'),
+        h('p',{style:{color:'var(--fg3)',fontSize:13,marginBottom:20}},'Sign in with Google to sync across devices. If Google is blocked or unavailable in your region, use on-device mode below.'),
         h('button',{className:"g-btn",onClick:signInPopup},GSvg,'Sign in with Google'),
         h('button',{type:'button',className:"auth-alt",onClick:signInRedirect},'Same-window sign-in (if popup fails)'),
+        h('button',{type:'button',className:"auth-alt",onClick:continueOnDevice},'Continue on this device (no Google)'),
+        h('p',{className:"auth-hint"},'On-device mode saves progress in this browser only. Clearing site data or another browser won\u2019t have your logs.'),
         authError?h('p',{className:"auth-err",role:'alert'},authError):null)));
 
   const wk=DATA[wi];const day=wk.d[di];const color=DC[day.n];const lk=wi+'-'+di;
@@ -343,7 +383,7 @@ function App(){
     h('div',{className:"topbar"},
       h('div',{className:"topbar-logo"},'M'),h('div',{className:"topbar-title"},'MIN-MAX'),
       h('div',{className:"topbar-user"},
-        h('div',{className:"sync-dot",style:{background:synced?'var(--teal)':'var(--gold)'},title:synced?'Synced':'Syncing...'}),
+        h('div',{className:"sync-dot",style:{background:synced?'var(--teal)':'var(--gold)'},title:user&&user.uid===LOCAL_UID?'Saved on this device':synced?'Synced':'Syncing...'}),
         user.photoURL?h('img',{className:"topbar-avatar",src:user.photoURL,referrerPolicy:"no-referrer"}):null,
         h('span',{className:"topbar-name"},user.displayName),
         h('button',{className:"topbar-logout",onClick:signOut},'Logout'))),
@@ -352,7 +392,7 @@ function App(){
     h('div',{className:"blk"},h('span',{className:"blk-l",style:{color:+wk.b===2?'var(--violet)':'var(--accent)'}},'Block '+wk.b),wk.w==='7'?h('span',{className:"dl-tag"},'DELOAD'):null),
 
     view==='dashboard'?h(Dash,{wi,setDi,setView,done,user}):
-    view==='progress'?h(Prog,{logs}):
+    view==='progress'?h(Prog,{logs,localOnly:user.uid===LOCAL_UID}):
     view==='overview'?h(Ov,{wi,setDi,setView}):
     h(F,null,
       h('div',{className:"dtabs"},...wk.d.map((d,i)=>{const c=DC[d.n];return h('button',{className:"dtab",key:i,onClick:()=>setDi(i),style:{background:i===di?c+'12':'transparent',color:i===di?c:'var(--fg3)',borderColor:i===di?c+'30':'transparent'}},d.n.replace('Arms/Delts','Arms'))})),
