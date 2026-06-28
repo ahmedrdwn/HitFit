@@ -118,6 +118,27 @@ input[type=number]{-moz-appearance:textfield}
 .addset:active{background:rgba(255,87,51,.22)}
 .rmset{background:var(--bg3);color:var(--fg3);border:1px solid var(--fg4);border-radius:8px;padding:8px 14px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .2s}
 .rmset:active{background:var(--bg4)}
+.exrm{background:transparent;border:none;color:var(--fg3);font-size:19px;line-height:1;cursor:pointer;padding:0 4px;flex-shrink:0;font-family:'DM Sans',sans-serif}
+.exrm:active{color:var(--red)}
+.addex{margin-top:5px;width:100%;background:var(--soft);color:var(--fg2);border:1px dashed var(--fg4);border-radius:var(--r);padding:14px;font-size:13px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .2s}
+.addex:active{background:var(--line2)}
+.addov{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:800;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(6px)}
+.addbox{background:var(--bg2);border:1px solid var(--fg4);border-bottom:none;border-top-left-radius:22px;border-top-right-radius:22px;width:100%;max-width:480px;max-height:84vh;display:flex;flex-direction:column;padding:18px 16px calc(18px + env(safe-area-inset-bottom));animation:slideUp .25s ease both}
+@keyframes slideUp{from{transform:translateY(50px);opacity:.3}to{transform:translateY(0);opacity:1}}
+.addhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.addti{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1.5px}
+.addsub{color:var(--fg3);font-size:11px;margin-top:1px}
+.addinput{width:100%;background:var(--bg3);border:1px solid var(--fg4);border-radius:12px;padding:13px 14px;color:var(--fg);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;transition:border .2s}
+.addinput:focus{border-color:var(--accent)}
+.addinput::placeholder{color:var(--fg3)}
+.addlist{margin-top:10px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+.addrow{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid var(--line);border-radius:11px;padding:11px 13px;cursor:pointer;text-align:left;font-family:'DM Sans',sans-serif;transition:background .15s}
+.addrow:active{background:var(--bg4)}
+.addrow:disabled{opacity:.5;cursor:default}
+.addcustom{border-style:dashed}
+.addrn{font-size:13px;font-weight:700;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.addrm{font-size:10.5px;color:var(--fg3);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.addplus{font-size:20px;font-weight:700;flex-shrink:0;line-height:1}
 .stg{background:var(--soft);color:var(--fg3);font-size:10.5px;padding:3px 8px;border-radius:5px}
 .chev{width:12px;height:12px;flex-shrink:0;transition:transform .3s;stroke:var(--fg3)}
 .arw{stroke:var(--fg3)}
@@ -244,6 +265,25 @@ const R1={f:[[1,0],[3,2],[2,1],null,[2,1]],u:[[2,1],[2,1],[1,null],[2,1],[1,0],n
 const T2={f:["Lengthened Partials",null,null,null,"Lengthened Partials","Lengthened Partials"],u:["Lengthened Partials","Two Drop Sets (~25%)",null,"Static Hold (30s)"],l:["Lengthened Partials",null,null,null,"Lengthened Partials"],a:[null,null,null,"Two Drop Sets (~25%)",null,null,"Two Drop Sets (~25%)","Myo-reps"]};
 const DATA=[gW(1,1,R1.f,R1.u,R1.l,R1.a),gW(2,1),gW(3,1),gW(4,1),gW(5,1),gW(6,1),gW(7,2,R1.f,R1.u,R1.l,R1.a),gW(8,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a),gW(9,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a),gW(10,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a),gW(11,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a),gW(12,2,null,null,null,null,T2.f,T2.u,T2.l,T2.a)];
 
+// Exercise catalog ("the sheet"): every exercise the program knows about, so
+// a searched name can be matched to its sets/reps/RIR/rest/video and added.
+const CAT={};
+[...FB,...UP,...LO,...AR].forEach(x=>{if(!CAT[x.n])CAT[x.n]={...x}});
+const defEx=nm=>({n:nm,s:3,r:"8-12",wu:1,r1:2,r2:1,rt:"1-2 min",s1:"",s2:"",nt:""});
+[...FB,...UP,...LO,...AR].forEach(x=>{[x.s1,x.s2].forEach(a=>{if(a&&!CAT[a])CAT[a]=defEx(a)})});
+Object.keys(YT).forEach(nm=>{if(!CAT[nm])CAT[nm]=defEx(nm)});
+const CATALOG=Object.values(CAT);
+const normName=s=>(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+function searchExercises(q){
+  const nq=normName(q);if(!nq)return CATALOG.slice().sort((a,b)=>a.n.localeCompare(b.n)).slice(0,12);
+  const toks=nq.split(' ');
+  return CATALOG.map(e=>{const n=normName(e.n);let score;
+    if(n===nq)score=100;else if(n.startsWith(nq))score=85;else if(n.includes(nq))score=70;
+    else{const m=toks.filter(t=>t&&n.includes(t)).length;score=toks.length?m/toks.length*55:0;}
+    return{e,score};
+  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.e.n.length-b.e.n.length).slice(0,12).map(x=>x.e);
+}
+
 const LOCAL_UID='local';
 const LOCAL_KEY='hitfit-minmax-local-v1';
 const LOCAL_PROFILE={uid:LOCAL_UID,displayName:'Guest',photoURL:null};
@@ -285,7 +325,7 @@ function Timer({secs,onDone}){
 }
 
 // Exercise Card
-function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid,setCounts,setSetCounts}){
+function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid,setCounts,setSetCounts,onRemove}){
   const[open,setOpen]=useState(false);const yt=YT[ex.n];const isF=ex.r1===0;
   const sL=(si,f,v)=>{const k=lk+'-'+idx+'-'+si;const n={...logs};if(!n[k])n[k]={w:'',rp:''};n[k]={...n[k],[f]:v};setLogs(n);cloudSave(uid,'logs',n)};
   const gL=(si,f)=>{const k=lk+'-'+idx+'-'+si;return(logs[k]||{})[f]||''};
@@ -298,6 +338,7 @@ function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid,setCounts,setS
         h('div',{style:{display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}},h('span',{className:"exn"},ex.n),ex.t?h('span',{className:"ext",style:{background:color+'20',color}},ex.t):null),
         h('div',{className:"exm"},h('span',{style:{color:'var(--fg3)'}},ex.s+'\u00d7'+(ex.r||'max')),h('span',{style:{color:isF?'var(--red)':'var(--gold)'}},'RIR '+(ex.r1!=null?ex.r1:'\u2013')+(ex.r2!=null?'/'+ex.r2:'')),isF?h('span',{style:{color:'var(--red)',fontSize:8,fontWeight:800,letterSpacing:1}},'FAILURE'):null)),
       yt?h('a',{className:"ytb",href:'https://youtu.be/'+yt,target:'_blank',rel:'noopener',onClick:e=>e.stopPropagation()},Ply):null,
+      onRemove?h('button',{className:"exrm",title:'Remove exercise','aria-label':'Remove exercise',onClick:e=>{e.stopPropagation();onRemove()}},'×'):null,
       Chv(open)),
     open?h('div',{className:"exd"},
       ex.nt?h('p',{className:"exnt"},ex.nt):null,
@@ -310,9 +351,10 @@ function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid,setCounts,setS
 }
 
 // Progress
-function Prog({logs,localOnly}){
-  const exN=Object.keys(YT).filter(n=>n!=="Dead Hang (optional)");
-  const gH=name=>{const r=[];DATA.forEach((w,wi)=>w.d.forEach((d,di)=>d.e.forEach((x,ei)=>{if(x.n===name){const l=logs[wi+'-'+di+'-'+ei+'-0'];if(l&&l.w)r.push({wk:+w.w,wt:+l.w,rp:+(l.rp||0)})}})));return r};
+function Prog({logs,localOnly,custom}){
+  const cnames=[];Object.keys(custom||{}).forEach(di=>(custom[di]||[]).forEach(x=>{if(cnames.indexOf(x.n)<0)cnames.push(x.n)}));
+  const exN=[...new Set([...Object.keys(YT),...cnames])].filter(n=>n!=="Dead Hang (optional)");
+  const gH=name=>{const r=[];DATA.forEach((w,wi)=>w.d.forEach((d,di)=>{const all=d.e.concat((custom&&custom[di])||[]);all.forEach((x,ei)=>{if(x.n===name){const l=logs[wi+'-'+di+'-'+ei+'-0'];if(l&&l.w)r.push({wk:+w.w,wt:+l.w,rp:+(l.rp||0)})}})}));return r};
   const tr=exN.filter(n=>gH(n).length>0);
   return h('div',{className:"pp"},h('h2',{style:{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:2,marginBottom:3}},'Progress'),h('p',{style:{color:'var(--fg3)',fontSize:12,marginBottom:16}},localOnly?'Logged on this device only (works where Google is blocked).':'Strength gains synced to your account'),
     tr.length===0?h('div',{className:"pe"},h('p',null,'No data logged yet.',h('br'),'Log your sets to track progress.')):
@@ -321,22 +363,46 @@ function Prog({logs,localOnly}){
 }
 
 // Dashboard
-function Dash({wi,setDi,setView,done,user,dc}){
-  const wk=DATA[wi];const tD=Object.keys(done).filter(k=>done[k]).length;const tA=DATA.reduce((a,w)=>a+w.d.reduce((b,d)=>b+d.e.length,0),0);
-  const wD=wk.d.reduce((a,d,i)=>a+d.e.filter((_,j)=>done[wi+'-'+i+'-'+j]).length,0);const wT=wk.d.reduce((a,d)=>a+d.e.length,0);
+function Dash({wi,setDi,setView,done,user,dc,custom}){
+  const wk=DATA[wi];const cl=i=>((custom&&custom[i])?custom[i].length:0);
+  const cnt=(i,d)=>{const t=d.e.length+cl(i);let n=0;for(let j=0;j<t;j++)if(done[wi+'-'+i+'-'+j])n++;return n};
+  const tD=Object.keys(done).filter(k=>done[k]).length;const tA=DATA.reduce((a,w)=>a+w.d.reduce((b,d,i)=>b+d.e.length+cl(i),0),0);
+  const wD=wk.d.reduce((a,d,i)=>a+cnt(i,d),0);const wT=wk.d.reduce((a,d,i)=>a+d.e.length+cl(i),0);
   return h('div',{className:"dash"},
     h('div',{className:"dash-hero fade-up"},h('div',{className:"dash-g"},'Welcome, '+user.displayName),h('div',{className:"dash-s"},'Week '+wk.w+' \u2022 Block '+wk.b+(wk.w==='7'?' \u2022 Deload':''))),
     h('div',{className:"stats fade-up fd1"},h('div',{className:"stat"},h('div',{className:"stat-v",style:{color:'var(--accent)'}},wk.w+'/12'),h('div',{className:"stat-l"},'Week')),h('div',{className:"stat"},h('div',{className:"stat-v",style:{color:'var(--teal)'}},wD+'/'+wT),h('div',{className:"stat-l"},'This Week')),h('div',{className:"stat"},h('div',{className:"stat-v",style:{color:'var(--gold)'}},Math.round(tD/tA*100)+'%'),h('div',{className:"stat-l"},'Overall'))),
     h('div',{className:"dash-t fade-up fd2"},"This Week's Sessions"),
-    ...wk.d.map((d,i)=>{const c=dc[d.n];const dn=d.e.filter((_,j)=>done[wi+'-'+i+'-'+j]).length;
-      return h('div',{className:"ddc fade-up fd"+(i+3),key:i,onClick:()=>{setDi(i);setView('workout')}},h('div',{className:"ddd",style:{background:c}}),h('div',{style:{flex:1}},h('div',{className:"ddn"},d.n),h('div',{className:"ddm"},d.e.length+' exercises \u2022 '+dn+' done')),Arw)}));
+    ...wk.d.map((d,i)=>{const c=dc[d.n];const tot=d.e.length+cl(i);const dn=cnt(i,d);
+      return h('div',{className:"ddc fade-up fd"+(i+3),key:i,onClick:()=>{setDi(i);setView('workout')}},h('div',{className:"ddd",style:{background:c}}),h('div',{style:{flex:1}},h('div',{className:"ddn"},d.n),h('div',{className:"ddm"},tot+' exercises \u2022 '+dn+' done')),Arw)}));
 }
 
 // Overview
-function Ov({wi,setDi,setView,dc}){
+function Ov({wi,setDi,setView,dc,custom}){
   const wk=DATA[wi];
   return h('div',{className:"ov"},h('h2',{style:{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,marginBottom:12}},'Week '+wk.w+' Overview'),
-    ...wk.d.map((d,di)=>{const c=dc[d.n];return h('div',{className:"ovc",key:di,style:{borderLeft:'3px solid '+c}},h('div',{className:"ovt",style:{color:c}},d.n),...d.e.map((x,ei)=>h('div',{className:"ove",key:ei},h('span',{style:{color:'var(--fg2)',fontSize:12}},x.n),h('span',{style:{color:'var(--fg3)',fontSize:11,fontFamily:"'JetBrains Mono',monospace"}},x.s+'\u00d7'+(x.r||'\u2013')))),h('button',{className:"ovb",onClick:()=>{setDi(di);setView('workout')}},'Start \u2192'))}));
+    ...wk.d.map((d,di)=>{const c=dc[d.n];const all=d.e.concat((custom&&custom[di])||[]);return h('div',{className:"ovc",key:di,style:{borderLeft:'3px solid '+c}},h('div',{className:"ovt",style:{color:c}},d.n),...all.map((x,ei)=>h('div',{className:"ove",key:ei},h('span',{style:{color:'var(--fg2)',fontSize:12}},x.n),h('span',{style:{color:'var(--fg3)',fontSize:11,fontFamily:"'JetBrains Mono',monospace"}},x.s+'\u00d7'+(x.r||'\u2013')))),h('button',{className:"ovb",onClick:()=>{setDi(di);setView('workout')}},'Start \u2192'))}));
+}
+
+// Add-exercise search modal — match a typed name to the catalog and add it
+function AddExercise({dayName,color,existing,onAdd,onClose}){
+  const[q,setQ]=useState('');
+  const res=searchExercises(q);
+  const hasExact=res.some(e=>normName(e.n)===normName(q));
+  const isIn=nm=>existing.indexOf(nm)>-1;
+  return h('div',{className:"addov",onClick:onClose},
+    h('div',{className:"addbox",onClick:e=>e.stopPropagation()},
+      h('div',{className:"addhd"},
+        h('div',null,h('div',{className:"addti"},'Add Exercise'),h('div',{className:"addsub"},'to '+dayName)),
+        h('button',{className:"icon-btn",type:'button','aria-label':'Close',onClick:onClose},'×')),
+      h('input',{className:"addinput",autoFocus:true,placeholder:'Search exercise name…',value:q,onChange:e=>setQ(e.target.value)}),
+      h('div',{className:"addlist"},
+        ...res.map(e=>h('button',{className:"addrow",type:'button',key:e.n,disabled:isIn(e.n),onClick:()=>onAdd(e)},
+          h('div',{style:{flex:1,minWidth:0}},h('div',{className:"addrn"},e.n),h('div',{className:"addrm"},e.s+'×'+(e.r||'max')+(YT[e.n]?' • video':'')+(isIn(e.n)?' • added':''))),
+          h('span',{className:"addplus",style:{color}},isIn(e.n)?'✓':'+'))),
+        (q.trim()&&!hasExact)?h('button',{className:"addrow addcustom",type:'button',onClick:()=>onAdd(defEx(q.trim()))},
+          h('div',{style:{flex:1,minWidth:0}},h('div',{className:"addrn"},'Add “'+q.trim()+'”'),h('div',{className:"addrm"},'Custom exercise')),
+          h('span',{className:"addplus",style:{color}},'+')):null,
+        (res.length===0&&!q.trim())?h('p',{style:{color:'var(--fg3)',fontSize:12,padding:'10px 2px'}},'Start typing to search.'):null)));
 }
 
 // Main App
@@ -351,6 +417,8 @@ function App(){
   const[done,setDone]=useState({});
   const[logs,setLogs]=useState({});
   const[setCounts,setSetCounts]=useState({});
+  const[custom,setCustom]=useState({});
+  const[adding,setAdding]=useState(false);
   const[timer,setTimer]=useState(null);
   const[view,setView]=useState('dashboard');
   const[synced,setSynced]=useState(false);
@@ -377,7 +445,7 @@ function App(){
         setGuestUser(null);
         setFirebaseUser(u);
         db.collection('users').doc(u.uid).get().then(doc=>{
-          if(doc.exists){const d=doc.data();setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setWi(d.wi||0)}
+          if(doc.exists){const d=doc.data();setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setCustom(d.custom||{});setWi(d.wi||0)}
           setSynced(true);setLoading(false);
         }).catch(()=>{setSynced(true);setLoading(false)});
       } else {
@@ -404,7 +472,7 @@ function App(){
     setAuthError('');
     guestRef.current=true;
     const d=readLocal();
-    if(d){setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setWi(typeof d.wi==='number'?d.wi:0)}
+    if(d){setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setCustom(d.custom||{});setWi(typeof d.wi==='number'?d.wi:0)}
     setGuestUser(LOCAL_PROFILE);
     setSynced(true);
     setLoading(false);
@@ -417,6 +485,14 @@ function App(){
   const toggleDone=useCallback(k=>{
     setDone(p=>{const n={...p,[k]:!p[k]};if(user)cloudSave(user.uid,'done',n);return n});
   },[user]);
+
+  const addExercise=(ex)=>{
+    setCustom(p=>{const arr=(p[di]||[]).concat([{...ex,added:true}]);const n={...p,[di]:arr};if(user)cloudSave(user.uid,'custom',n);return n});
+    setAdding(false);
+  };
+  const removeExercise=(ci)=>{
+    setCustom(p=>{const arr=(p[di]||[]).slice();arr.splice(ci,1);const n={...p};if(arr.length)n[di]=arr;else delete n[di];if(user)cloudSave(user.uid,'custom',n);return n});
+  };
 
   useEffect(()=>{if(user)cloudSave(user.uid,'wi',wi)},[wi,user]);
 
@@ -438,10 +514,12 @@ function App(){
         authError?h('p',{className:"auth-err",role:'alert'},authError):null)));
 
   const wk=DATA[wi];const day=wk.d[di];const color=colorMap[day.n];const lk=wi+'-'+di;
-  const tE=day.e.length;const dC=day.e.filter((_,i)=>done[lk+'-'+i]).length;
+  const customDay=custom[di]||[];const allEx=day.e.concat(customDay);const baseN=day.e.length;
+  const tE=allEx.length;const dC=allEx.filter((_,i)=>done[lk+'-'+i]).length;
 
   return h('div',{className:"shell"},
     timer?h(Timer,{secs:timer,onDone:()=>setTimer(null)}):null,
+    adding?h(AddExercise,{dayName:day.n,color,existing:allEx.map(e=>e.n),onAdd:addExercise,onClose:()=>setAdding(false)}):null,
     h('div',{className:"topbar"},
       h('div',{className:"topbar-logo"},'M'),h('div',{className:"topbar-title"},'MIN-MAX'),
       h('div',{className:"topbar-user"},
@@ -454,14 +532,16 @@ function App(){
     h('div',{className:"week-bar"},...DATA.map((w,i)=>h('button',{className:"wk"+(i===wi?" on":"")+(+w.b===2?" b2":""),key:i,onClick:()=>{setWi(i);setDi(0)}},w.w))),
     h('div',{className:"blk"},h('span',{className:"blk-l",style:{color:+wk.b===2?'var(--violet)':'var(--accent)'}},'Block '+wk.b),wk.w==='7'?h('span',{className:"dl-tag"},'DELOAD'):null),
 
-    view==='dashboard'?h(Dash,{wi,setDi,setView,done,user,dc:colorMap}):
-    view==='progress'?h(Prog,{logs,localOnly:user.uid===LOCAL_UID}):
-    view==='overview'?h(Ov,{wi,setDi,setView,dc:colorMap}):
+    view==='dashboard'?h(Dash,{wi,setDi,setView,done,user,dc:colorMap,custom}):
+    view==='progress'?h(Prog,{logs,localOnly:user.uid===LOCAL_UID,custom}):
+    view==='overview'?h(Ov,{wi,setDi,setView,dc:colorMap,custom}):
     h(F,null,
       h('div',{className:"dtabs"},...wk.d.map((d,i)=>{const c=colorMap[d.n];return h('button',{className:"dtab",key:i,onClick:()=>setDi(i),style:{background:i===di?c+'12':'transparent',color:i===di?c:'var(--fg3)',borderColor:i===di?c+'30':'transparent'}},d.n.replace('Arms/Delts','Arms'))})),
       h('div',{className:"pbar"},h('div',{className:"pbar-h"},h('span',{style:{color:'var(--fg4)'}},dC+'/'+tE),h('span',{style:{color}},Math.round(dC/tE*100)+'%')),h('div',{className:"pbar-t"},h('div',{className:"pbar-f",style:{width:dC/tE*100+'%',background:'linear-gradient(90deg,'+color+','+color+'80)'}}))),
       h('div',{className:"trow"},...[{l:'1m',v:60},{l:'90s',v:90},{l:'2m',v:120},{l:'3m',v:180},{l:'5m',v:300}].map(t=>h('button',{className:"tbtn",key:t.v,onClick:()=>setTimer(t.v)},t.l))),
-      h('div',{className:"exl"},...day.e.map((ex,i)=>h(ExCard,{key:wi+'-'+di+'-'+i,ex,idx:i,color,isDone:!!done[lk+'-'+i],onToggle:()=>toggleDone(lk+'-'+i),lk,logs,setLogs,uid:user.uid,setCounts,setSetCounts})))));
+      h('div',{className:"exl"},
+        ...allEx.map((ex,i)=>h(ExCard,{key:wi+'-'+di+'-'+i,ex,idx:i,color,isDone:!!done[lk+'-'+i],onToggle:()=>toggleDone(lk+'-'+i),lk,logs,setLogs,uid:user.uid,setCounts,setSetCounts,onRemove:i>=baseN?()=>removeExercise(i-baseN):undefined})),
+        h('button',{className:"addex",type:'button',onClick:()=>setAdding(true)},'+ Add Exercise'))));
 }
 
 ReactDOM.render(h(App),document.getElementById('root'));
