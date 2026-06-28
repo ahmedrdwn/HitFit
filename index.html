@@ -139,6 +139,17 @@ input[type=number]{-moz-appearance:textfield}
 .addrn{font-size:13px;font-weight:700;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .addrm{font-size:10.5px;color:var(--fg3);font-family:'JetBrains Mono',monospace;margin-top:2px}
 .addplus{font-size:20px;font-weight:700;flex-shrink:0;line-height:1}
+.finishbtn{margin-top:8px;width:100%;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:var(--r);padding:15px;font-size:13.5px;font-weight:800;font-family:'DM Sans',sans-serif;cursor:pointer;letter-spacing:.3px;transition:transform .15s}
+.finishbtn:active{transform:scale(.98)}
+.sumhero{text-align:center;border:1px solid var(--fg4);border-radius:16px;padding:18px;margin-bottom:12px;background:var(--bg3)}
+.sumcal{font-family:'Bebas Neue',sans-serif;font-size:52px;line-height:1;letter-spacing:1px}
+.sumlbl{color:var(--fg3);font-size:11px;margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+.sumbw{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--fg2);font-weight:600}
+.sumunit{color:var(--fg3)}
+.sumrow{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--soft)}
+.sumrow.un{opacity:.5}
+.sumrk{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;flex-shrink:0}
+.sumnote{color:var(--fg4);font-size:10px;line-height:1.5;margin-top:12px}
 .stg{background:var(--soft);color:var(--fg3);font-size:10.5px;padding:3px 8px;border-radius:5px}
 .chev{width:12px;height:12px;flex-shrink:0;transition:transform .3s;stroke:var(--fg3)}
 .arw{stroke:var(--fg3)}
@@ -383,6 +394,37 @@ function Ov({wi,setDi,setView,dc,custom}){
     ...wk.d.map((d,di)=>{const c=dc[d.n];const all=d.e.concat((custom&&custom[di])||[]);return h('div',{className:"ovc",key:di,style:{borderLeft:'3px solid '+c}},h('div',{className:"ovt",style:{color:c}},d.n),...all.map((x,ei)=>h('div',{className:"ove",key:ei},h('span',{style:{color:'var(--fg2)',fontSize:12}},x.n),h('span',{style:{color:'var(--fg3)',fontSize:11,fontFamily:"'JetBrains Mono',monospace"}},x.s+'\u00d7'+(x.r||'\u2013')))),h('button',{className:"ovb",onClick:()=>{setDi(di);setView('workout')}},'Start \u2192'))}));
 }
 
+// Calorie estimate from MET benchmark values for resistance training.
+// kcal = MET x bodyweight(kg) x duration(hours); duration = sets x (work + rest).
+function exCalories(ex,sets,bwLbs){
+  const wkg=(+bwLbs>0?+bwLbs:165)/2.20462;
+  const heavy=ex.r1===0 || /3-5|2-3/.test(ex.rt||''); // failure sets or heavy compounds
+  const metWork=heavy?8.0:6.0,metRest=2.0; // benchmark METs: working set vs. rest
+  const nums=(ex.rt||'').match(/\d+(?:\.\d+)?/g);
+  const restS=nums&&nums.length?(nums.length>1?(+nums[0]+ +nums[1])/2:+nums[0])*60:90;
+  const workS=40; // approx time under tension per set
+  return wkg*(metWork*sets*workS+metRest*sets*restS)/3600;
+}
+
+// Post-workout calorie summary (MET benchmark based)
+function Summary({allEx,done,lk,setCounts,bw,onBw,color,onClose}){
+  const rows=allEx.map((ex,i)=>{const base=ex.s||1;const extra=setCounts[lk+'-'+i]||0;const sets=base+extra;return{ex,sets,kcal:exCalories(ex,sets,bw),done:!!done[lk+'-'+i]};});
+  const dn=rows.filter(r=>r.done);
+  const totalDone=Math.round(dn.reduce((a,r)=>a+r.kcal,0));
+  const setsDone=dn.reduce((a,r)=>a+r.sets,0);
+  return h('div',{className:"addov",onClick:onClose},
+    h('div',{className:"addbox",onClick:e=>e.stopPropagation()},
+      h('div',{className:"addhd"},
+        h('div',null,h('div',{className:"addti"},'Workout Summary'),h('div',{className:"addsub"},dn.length+' of '+rows.length+' exercises completed')),
+        h('button',{className:"icon-btn",type:'button','aria-label':'Close',onClick:onClose},'×')),
+      h('div',{className:"sumhero"},h('div',{className:"sumcal",style:{color}},totalDone),h('div',{className:"sumlbl"},'kcal burned • '+setsDone+' sets')),
+      h('div',{className:"sumbw"},h('span',null,'Bodyweight'),h('input',{className:"si",type:'number',inputMode:'decimal',value:bw,onChange:e=>onBw(e.target.value)}),h('span',{className:"sumunit"},'lbs')),
+      h('div',{className:"addlist"},...rows.map((r,i)=>h('div',{className:"sumrow"+(r.done?'':' un'),key:i},
+        h('div',{style:{flex:1,minWidth:0}},h('div',{className:"addrn"},r.ex.n),h('div',{className:"addrm"},r.sets+(r.sets===1?' set':' sets')+(r.done?'':' • not done'))),
+        h('div',{className:"sumrk",style:{color:r.done?color:'var(--fg3)'}},Math.round(r.kcal)+' kcal')))),
+      h('p',{className:"sumnote"},'Approximate — based on MET benchmark values for resistance training, your bodyweight, set count and prescribed rest. Only completed exercises count toward the total.')));
+}
+
 // Add-exercise search modal — match a typed name to the catalog and add it
 function AddExercise({dayName,color,existing,onAdd,onClose}){
   const[q,setQ]=useState('');
@@ -419,6 +461,8 @@ function App(){
   const[setCounts,setSetCounts]=useState({});
   const[custom,setCustom]=useState({});
   const[adding,setAdding]=useState(false);
+  const[summary,setSummary]=useState(false);
+  const[bw,setBw]=useState(165);
   const[timer,setTimer]=useState(null);
   const[view,setView]=useState('dashboard');
   const[synced,setSynced]=useState(false);
@@ -445,7 +489,7 @@ function App(){
         setGuestUser(null);
         setFirebaseUser(u);
         db.collection('users').doc(u.uid).get().then(doc=>{
-          if(doc.exists){const d=doc.data();setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setCustom(d.custom||{});setWi(d.wi||0)}
+          if(doc.exists){const d=doc.data();setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setCustom(d.custom||{});if(+d.bw>0)setBw(d.bw);setWi(d.wi||0)}
           setSynced(true);setLoading(false);
         }).catch(()=>{setSynced(true);setLoading(false)});
       } else {
@@ -472,7 +516,7 @@ function App(){
     setAuthError('');
     guestRef.current=true;
     const d=readLocal();
-    if(d){setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setCustom(d.custom||{});setWi(typeof d.wi==='number'?d.wi:0)}
+    if(d){setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setCustom(d.custom||{});if(+d.bw>0)setBw(d.bw);setWi(typeof d.wi==='number'?d.wi:0)}
     setGuestUser(LOCAL_PROFILE);
     setSynced(true);
     setLoading(false);
@@ -493,6 +537,7 @@ function App(){
   const removeExercise=(ci)=>{
     setCustom(p=>{const arr=(p[di]||[]).slice();arr.splice(ci,1);const n={...p};if(arr.length)n[di]=arr;else delete n[di];if(user)cloudSave(user.uid,'custom',n);return n});
   };
+  const updateBw=(v)=>{const n=parseFloat(v);setBw(isNaN(n)?'':n);if(user&&!isNaN(n)&&n>0)cloudSave(user.uid,'bw',n)};
 
   useEffect(()=>{if(user)cloudSave(user.uid,'wi',wi)},[wi,user]);
 
@@ -520,6 +565,7 @@ function App(){
   return h('div',{className:"shell"},
     timer?h(Timer,{secs:timer,onDone:()=>setTimer(null)}):null,
     adding?h(AddExercise,{dayName:day.n,color,existing:allEx.map(e=>e.n),onAdd:addExercise,onClose:()=>setAdding(false)}):null,
+    summary?h(Summary,{allEx,done,lk,setCounts,bw,onBw:updateBw,color,onClose:()=>setSummary(false)}):null,
     h('div',{className:"topbar"},
       h('div',{className:"topbar-logo"},'M'),h('div',{className:"topbar-title"},'MIN-MAX'),
       h('div',{className:"topbar-user"},
@@ -541,7 +587,8 @@ function App(){
       h('div',{className:"trow"},...[{l:'1m',v:60},{l:'90s',v:90},{l:'2m',v:120},{l:'3m',v:180},{l:'5m',v:300}].map(t=>h('button',{className:"tbtn",key:t.v,onClick:()=>setTimer(t.v)},t.l))),
       h('div',{className:"exl"},
         ...allEx.map((ex,i)=>h(ExCard,{key:wi+'-'+di+'-'+i,ex,idx:i,color,isDone:!!done[lk+'-'+i],onToggle:()=>toggleDone(lk+'-'+i),lk,logs,setLogs,uid:user.uid,setCounts,setSetCounts,onRemove:i>=baseN?()=>removeExercise(i-baseN):undefined})),
-        h('button',{className:"addex",type:'button',onClick:()=>setAdding(true)},'+ Add Exercise'))));
+        h('button',{className:"addex",type:'button',onClick:()=>setAdding(true)},'+ Add Exercise'),
+        h('button',{className:"finishbtn",type:'button',onClick:()=>setSummary(true)},'🔥 Finish — See Calories ('+dC+'/'+tE+')'))));
 }
 
 ReactDOM.render(h(App),document.getElementById('root'));
