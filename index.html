@@ -108,6 +108,11 @@ input[type=number]{-moz-appearance:textfield}
 .si:focus{border-color:var(--accent)}
 .si::placeholder{color:rgba(255,255,255,.12)}
 .slbl{color:var(--fg4);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;margin-bottom:5px}
+.setadd{display:flex;gap:6px;margin-top:7px}
+.addset{flex:1;background:rgba(255,87,51,.1);color:var(--accent);border:1px dashed rgba(255,87,51,.4);border-radius:8px;padding:8px 0;font-size:11px;font-weight:700;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .2s}
+.addset:active{background:rgba(255,87,51,.22)}
+.rmset{background:var(--bg3);color:var(--fg3);border:1px solid var(--fg4);border-radius:8px;padding:8px 14px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:background .2s}
+.rmset:active{background:var(--bg4)}
 .stg{background:rgba(255,255,255,.03);color:var(--fg3);font-size:10.5px;padding:3px 8px;border-radius:5px}
 .chev{width:12px;height:12px;flex-shrink:0;transition:transform .3s}
 .chev.op{transform:rotate(180deg)}
@@ -244,12 +249,12 @@ function writeLocalField(field,data){
   try{localStorage.setItem(LOCAL_KEY,JSON.stringify(cur))}catch(e){console.error(e)}
 }
 
-// Firestore + local device storage
-let saveTimer=null;
+// Firestore + local device storage (per-field debounce so saves don't clobber each other)
+const saveTimers={};
 const cloudSave=(uid,field,data)=>{
-  clearTimeout(saveTimer);
-  if(uid===LOCAL_UID){saveTimer=setTimeout(()=>writeLocalField(field,data),800);return}
-  saveTimer=setTimeout(()=>{db.collection('users').doc(uid).set({[field]:data},{merge:true}).catch(console.error)},800)
+  clearTimeout(saveTimers[field]);
+  if(uid===LOCAL_UID){saveTimers[field]=setTimeout(()=>writeLocalField(field,data),800);return}
+  saveTimers[field]=setTimeout(()=>{db.collection('users').doc(uid).set({[field]:data},{merge:true}).catch(console.error)},800)
 };
 
 // SVGs
@@ -270,10 +275,12 @@ function Timer({secs,onDone}){
 }
 
 // Exercise Card
-function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid}){
+function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid,setCounts,setSetCounts}){
   const[open,setOpen]=useState(false);const yt=YT[ex.n];const isF=ex.r1===0;
   const sL=(si,f,v)=>{const k=lk+'-'+idx+'-'+si;const n={...logs};if(!n[k])n[k]={w:'',rp:''};n[k]={...n[k],[f]:v};setLogs(n);cloudSave(uid,'logs',n)};
   const gL=(si,f)=>{const k=lk+'-'+idx+'-'+si;return(logs[k]||{})[f]||''};
+  const sk=lk+'-'+idx;const base=ex.s||1;const extra=setCounts[sk]||0;const nSets=base+extra;
+  const setExtra=(v)=>{const n={...setCounts};if(v<=0)delete n[sk];else n[sk]=v;setSetCounts(n);cloudSave(uid,'sets',n)};
   return h('div',{className:"exc fade-up fd"+Math.min(idx,5)+(isDone?" dn":""),style:{borderLeftColor:isDone?'var(--fg4)':color}},
     h('div',{className:"exh",onClick:()=>setOpen(!open)},
       h('button',{className:"chk"+(isDone?" on":""),style:{borderColor:color,...(isDone?{background:color}:{})},onClick:e=>{e.stopPropagation();onToggle()}},isDone?Chk:null),
@@ -286,7 +293,8 @@ function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid}){
       ex.nt?h('p',{className:"exnt"},ex.nt):null,
       h('div',{className:"etg"},h('span',null,'Rest: '+ex.rt),h('span',null,'Warmup: '+ex.wu)),
       h('p',{className:"slbl"},'Log Sets'),
-      ...Array.from({length:ex.s||1}).map((_,si)=>h('div',{className:"sr",key:si},h('span',{className:"sl"},'S'+(si+1)),h('input',{className:"si",type:'number',inputMode:'decimal',placeholder:'lbs',value:gL(si,'w'),onChange:e=>sL(si,'w',e.target.value)}),h('input',{className:"si",type:'number',inputMode:'numeric',placeholder:'reps',value:gL(si,'rp'),onChange:e=>sL(si,'rp',e.target.value)}))),
+      ...Array.from({length:nSets}).map((_,si)=>h('div',{className:"sr",key:si},h('span',{className:"sl"},'S'+(si+1)+(si>=base?'+':'')),h('input',{className:"si",type:'number',inputMode:'decimal',placeholder:'lbs',value:gL(si,'w'),onChange:e=>sL(si,'w',e.target.value)}),h('input',{className:"si",type:'number',inputMode:'numeric',placeholder:'reps',value:gL(si,'rp'),onChange:e=>sL(si,'rp',e.target.value)}))),
+      h('div',{className:"setadd"},h('button',{className:"addset",type:'button',onClick:()=>setExtra(extra+1)},'+ Add Set'),extra>0?h('button',{className:"rmset",type:'button',onClick:()=>setExtra(extra-1)},'− Remove'):null),
       (ex.s1||ex.s2)?h(F,null,h('p',{className:"slbl",style:{marginTop:8}},'Alternatives'),h('div',{style:{display:'flex',gap:4,flexWrap:'wrap'}},ex.s1?h('span',{className:"stg"},ex.s1):null,ex.s2?h('span',{className:"stg"},ex.s2):null)):null
     ):null);
 }
@@ -332,6 +340,7 @@ function App(){
   const[di,setDi]=useState(0);
   const[done,setDone]=useState({});
   const[logs,setLogs]=useState({});
+  const[setCounts,setSetCounts]=useState({});
   const[timer,setTimer]=useState(null);
   const[view,setView]=useState('dashboard');
   const[synced,setSynced]=useState(false);
@@ -349,7 +358,7 @@ function App(){
         setGuestUser(null);
         setFirebaseUser(u);
         db.collection('users').doc(u.uid).get().then(doc=>{
-          if(doc.exists){const d=doc.data();setDone(d.done||{});setLogs(d.logs||{});setWi(d.wi||0)}
+          if(doc.exists){const d=doc.data();setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setWi(d.wi||0)}
           setSynced(true);setLoading(false);
         }).catch(()=>{setSynced(true);setLoading(false)});
       } else {
@@ -376,7 +385,7 @@ function App(){
     setAuthError('');
     guestRef.current=true;
     const d=readLocal();
-    if(d){setDone(d.done||{});setLogs(d.logs||{});setWi(typeof d.wi==='number'?d.wi:0)}
+    if(d){setDone(d.done||{});setLogs(d.logs||{});setSetCounts(d.sets||{});setWi(typeof d.wi==='number'?d.wi:0)}
     setGuestUser(LOCAL_PROFILE);
     setSynced(true);
     setLoading(false);
@@ -431,7 +440,7 @@ function App(){
       h('div',{className:"dtabs"},...wk.d.map((d,i)=>{const c=DC[d.n];return h('button',{className:"dtab",key:i,onClick:()=>setDi(i),style:{background:i===di?c+'12':'transparent',color:i===di?c:'var(--fg3)',borderColor:i===di?c+'30':'transparent'}},d.n.replace('Arms/Delts','Arms'))})),
       h('div',{className:"pbar"},h('div',{className:"pbar-h"},h('span',{style:{color:'var(--fg4)'}},dC+'/'+tE),h('span',{style:{color}},Math.round(dC/tE*100)+'%')),h('div',{className:"pbar-t"},h('div',{className:"pbar-f",style:{width:dC/tE*100+'%',background:'linear-gradient(90deg,'+color+','+color+'80)'}}))),
       h('div',{className:"trow"},...[{l:'1m',v:60},{l:'90s',v:90},{l:'2m',v:120},{l:'3m',v:180},{l:'5m',v:300}].map(t=>h('button',{className:"tbtn",key:t.v,onClick:()=>setTimer(t.v)},t.l))),
-      h('div',{className:"exl"},...day.e.map((ex,i)=>h(ExCard,{key:wi+'-'+di+'-'+i,ex,idx:i,color,isDone:!!done[lk+'-'+i],onToggle:()=>toggleDone(lk+'-'+i),lk,logs,setLogs,uid:user.uid})))));
+      h('div',{className:"exl"},...day.e.map((ex,i)=>h(ExCard,{key:wi+'-'+di+'-'+i,ex,idx:i,color,isDone:!!done[lk+'-'+i],onToggle:()=>toggleDone(lk+'-'+i),lk,logs,setLogs,uid:user.uid,setCounts,setSetCounts})))));
 }
 
 ReactDOM.render(h(App),document.getElementById('root'));
