@@ -352,7 +352,7 @@ function ExCard({ex,idx,color,isDone,onToggle,lk,logs,setLogs,uid,setCounts,setS
   const gL=(si,f)=>{const k=lk+'-'+idx+'-'+si;return(logs[k]||{})[f]||''};
   const sk=lk+'-'+idx;const base=ex.s||1;const extra=setCounts[sk]||0;const nSets=base+extra;
   const setExtra=(v)=>{const n={...setCounts};if(v<=0)delete n[sk];else n[sk]=v;setSetCounts(n);cloudSave(uid,'sets',n)};
-  const kcal=Math.round(exCalories(ex,nSets,bw));
+  const kcal=Math.round(exCalories(ex,nSets,bw,exVolume(ex,logs,lk,idx,nSets)));
   return h('div',{className:"exc fade-up fd"+Math.min(idx,5)+(isDone?" dn":""),style:{borderLeftColor:isDone?'var(--fg4)':color}},
     h('div',{className:"exh",onClick:()=>setOpen(!open)},
       h('button',{className:"chk"+(isDone?" on":""),style:{borderColor:color,...(isDone?{background:color}:{})},onClick:e=>{e.stopPropagation();onToggle()}},isDone?Chk:null),
@@ -405,21 +405,33 @@ function Ov({wi,setDi,setView,dc,custom}){
     ...wk.d.map((d,di)=>{const c=dc[d.n];const all=d.e.concat((custom&&custom[di])||[]);return h('div',{className:"ovc",key:di,style:{borderLeft:'3px solid '+c}},h('div',{className:"ovt",style:{color:c}},d.n),...all.map((x,ei)=>h('div',{className:"ove",key:ei},h('span',{style:{color:'var(--fg2)',fontSize:12}},x.n),h('span',{style:{color:'var(--fg3)',fontSize:11,fontFamily:"'JetBrains Mono',monospace"}},x.s+'\u00d7'+(x.r||'\u2013')))),h('button',{className:"ovb",onClick:()=>{setDi(di);setView('workout')}},'Start \u2192'))}));
 }
 
-// Calorie estimate from MET benchmark values for resistance training.
-// kcal = MET x bodyweight(kg) x duration(hours); duration = sets x (work + rest).
-function exCalories(ex,sets,bwLbs){
+// Calorie estimate = MET-based baseline + mechanical work of the lifted load.
+//  baseline: MET benchmark x bodyweight(kg) x time (time = sets x (work+rest))
+//  load:     ~0.0036 kcal per (lb x rep) from logged weight x reps, summed over
+//            sets (mechanical work at ~22% muscle efficiency, ~0.5 m ROM)
+// So calories rise with the number of sets AND the weight you log.
+const repMid=r=>{const m=(r||'').match(/\d+/g);return m?(m.length>1?(+m[0]+ +m[1])/2:+m[0]):8};
+function exVolume(ex,logs,lk,idx,nSets){
+  let vol=0;
+  for(let si=0;si<nSets;si++){const l=logs&&logs[lk+'-'+idx+'-'+si];
+    if(l&&l.w!==''&&l.w!=null)vol+=(parseFloat(l.w)||0)*(parseFloat(l.rp)||repMid(ex.r))}
+  return vol;
+}
+function exCalories(ex,sets,bwLbs,volume){
   const wkg=(+bwLbs>0?+bwLbs:165)/2.20462;
   const heavy=ex.r1===0 || /3-5|2-3/.test(ex.rt||''); // failure sets or heavy compounds
   const metWork=heavy?8.0:6.0,metRest=2.0; // benchmark METs: working set vs. rest
   const nums=(ex.rt||'').match(/\d+(?:\.\d+)?/g);
   const restS=nums&&nums.length?(nums.length>1?(+nums[0]+ +nums[1])/2:+nums[0])*60:90;
   const workS=40; // approx time under tension per set
-  return wkg*(metWork*sets*workS+metRest*sets*restS)/3600;
+  const baseline=wkg*(metWork*sets*workS+metRest*sets*restS)/3600;
+  const load=0.0036*(+volume||0); // mechanical work of the lifted weight x reps
+  return baseline+load;
 }
 
 // Post-workout calorie summary (MET benchmark based)
-function Summary({allEx,done,lk,setCounts,bw,onBw,color,onClose}){
-  const rows=allEx.map((ex,i)=>{const base=ex.s||1;const extra=setCounts[lk+'-'+i]||0;const sets=base+extra;return{ex,sets,kcal:exCalories(ex,sets,bw),done:!!done[lk+'-'+i]};});
+function Summary({allEx,done,lk,setCounts,logs,bw,onBw,color,onClose}){
+  const rows=allEx.map((ex,i)=>{const base=ex.s||1;const extra=setCounts[lk+'-'+i]||0;const sets=base+extra;const vol=exVolume(ex,logs,lk,i,sets);return{ex,sets,kcal:exCalories(ex,sets,bw,vol),done:!!done[lk+'-'+i]};});
   const dn=rows.filter(r=>r.done);
   const totalDone=Math.round(dn.reduce((a,r)=>a+r.kcal,0));
   const setsDone=dn.reduce((a,r)=>a+r.sets,0);
@@ -433,7 +445,7 @@ function Summary({allEx,done,lk,setCounts,bw,onBw,color,onClose}){
       h('div',{className:"addlist"},...rows.map((r,i)=>h('div',{className:"sumrow"+(r.done?'':' un'),key:i},
         h('div',{style:{flex:1,minWidth:0}},h('div',{className:"addrn"},r.ex.n),h('div',{className:"addrm"},r.sets+(r.sets===1?' set':' sets')+(r.done?'':' • not done'))),
         h('div',{className:"sumrk",style:{color:r.done?color:'var(--fg3)'}},Math.round(r.kcal)+' kcal')))),
-      h('p',{className:"sumnote"},'Approximate — based on MET benchmark values for resistance training, your bodyweight, set count and prescribed rest. Only completed exercises count toward the total.')));
+      h('p',{className:"sumnote"},'Approximate — based on MET benchmark values plus the mechanical work of the weight × reps you log, scaled by your bodyweight and set count. Log your sets for a sharper estimate. Only completed exercises count toward the total.')));
 }
 
 // Add-exercise search modal — match a typed name to the catalog and add it
@@ -579,7 +591,7 @@ function App(){
   return h('div',{className:"shell"},
     timer?h(Timer,{secs:timer,onDone:()=>setTimer(null)}):null,
     adding?h(AddExercise,{dayName:day.n,color,existing:allEx.map(e=>e.n),onAdd:addExercise,onClose:()=>setAdding(false)}):null,
-    summary?h(Summary,{allEx,done,lk,setCounts,bw,onBw:updateBw,color,onClose:()=>setSummary(false)}):null,
+    summary?h(Summary,{allEx,done,lk,setCounts,logs,bw,onBw:updateBw,color,onClose:()=>setSummary(false)}):null,
     h('div',{className:"topbar"},
       h('div',{className:"topbar-logo"},'M'),h('div',{className:"topbar-title"},'MIN-MAX'),
       h('div',{className:"topbar-user"},
